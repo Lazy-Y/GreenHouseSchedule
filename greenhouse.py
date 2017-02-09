@@ -132,9 +132,9 @@ def getEmployeeCoverTime(employees, time, availability, choosen):
 				choosen.add(employee)
 				leave_time = duration[0] + maxHour
 				if leave_time < duration[1] and leave_time - time >= getMinWorkingTime(employee):
-					return (employee, [time, leave_time])
+					return (employee, [duration[0], leave_time])
 				elif duration[1] - time >= getMinWorkingTime(employee):
-					return (employee, [time, duration[1]]) 
+					return (employee, duration) 
 	return False
 
 
@@ -143,21 +143,64 @@ def getAvailableEmployee(employees, availability):
 	return [employee for employee in employees if len(availability[employee.name]) > 0]
 
 
+# get the employee who leaves at time and with the longest duration
+# return Employ
 def getLongestTimelineEndAt(time_map, time):
 	result_employee = None
 	for employee, duration in time_map.iteritems():
-		if duration[1] - 1 == time and duration[1] - duration[0] >= getMinWorkingTime(employee):
+		if duration[1] - 1 == time and duration[1] - duration[0] > getMinWorkingTime(employee):
 			if result_employee == None or time_map[result_employee][1] - time_map[result_employee][0] < duration[1] - duration[0]:
 				result_employee = employee
 	return result_employee
 
+
+def getLongestTimelineStartAt(time_map, time):
+	result_employee = None
+	for employee, duration in time_map.iteritems():
+		if duration[0] == time and duration[1] - duration[0] > getMinWorkingTime(employee):
+			if result_employee == None or time_map[result_employee][1] - time_map[result_employee][0] < duration[1] - duration[0]:
+				result_employee = employee
+	return result_employee
+
+
+def optimization(empty_sheet, time_template, time_map):
+	start = 0
+	end = len(empty_sheet) - 1
+	diff = end - start
+	while diff >= 0:
+		while not (len(empty_sheet[end]) > time_template[end]):# or len(empty_sheet[end]) > minNumSupervisors):
+			end-=1
+			if start > end:
+				break
+		while len(empty_sheet[end]) > time_template[end]:# or len(empty_sheet[end]) > minNumSupervisors:
+			employee = getLongestTimelineEndAt(time_map, end)
+			if employee == None:
+				break
+			time_map[employee][1] -= 1
+			empty_sheet[end].remove(index_map[employee.name])
+			end-=1
+		while not (len(empty_sheet[start]) > time_template[start]):# or len(empty_sheet[start]) > minNumSupervisors):
+			start+=1
+			if start > end:
+				break
+		while len(empty_sheet[start]) > time_template[start]:# or len(empty_sheet[start]) > minNumSupervisors:
+			employee = getLongestTimelineStartAt(time_map, start)
+			if employee == None:
+				break
+			time_map[employee][0] += 1
+			empty_sheet[start].remove(index_map[employee.name])
+			start+=1
+		if diff == end - start:
+			return False
+		else:
+			diff = end - start
+	return empty_sheet
 
 
 # get a solution for supervisor arrangement for a DAY
 def getSupervisorSheet(availability, time_template, choosen=set()):
 	supervisors = getAvailableEmployee(getSupervisors(), availability)
 	empty_sheet = getEmptyDaySheet()
-	print time_template
 	time_map = {}
 	for i in range(len(empty_sheet)):
 		while time_template[i] > 0 and len(empty_sheet[i]) < minNumSupervisors:
@@ -168,20 +211,18 @@ def getSupervisorSheet(availability, time_template, choosen=set()):
 			time_map[employee] = duration
 			for j in range(duration[0],duration[1]):
 				empty_sheet[j].append(index_map[employee.name])
-	for i in range(len(empty_sheet)-1, -1, -1):
-		print empty_sheet
-		while len(empty_sheet[i]) > time_template[i]:
-			employee = getLongestTimelineEndAt(time_map, i)
-			if employee == None:
-				return False
-			time_map[employee][1] -= 1
-			empty_sheet[i].remove(index_map[employee.name])
+	time_sheet = optimization(empty_sheet, time_template, time_map)
+	if time_sheet == None:
+		return False
+	else:
+		return time_sheet
+	
 
 
 # get a solution for a DAY
 def getDaySolution(availability, time_template):
 	supervisor_sheet = getSupervisorSheet(availability, time_template)
-	return supervisor_sheet
+	print supervisor_sheet
 
 
 # get a solution for a WEEK
