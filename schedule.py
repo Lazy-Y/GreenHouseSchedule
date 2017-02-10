@@ -4,12 +4,12 @@ from random import choice
 from copy import deepcopy
 
 
-newServerMinHour = 8#4*2
-ServerMinHour = 10#5*2
+newServerMinHour = 8
+ServerMinHour = 8
 maxHour = 16
 minNumSupervisors = 1
 
-maxSolCount = 30
+maxSolCount = 1000
 
 class Employee:
 	"""docstring for Employee"""
@@ -169,7 +169,7 @@ def solveDay(day, time_template, availableEmployees, time = 0, parentNode = [], 
 	currNode = []
 	currLength = {}
 	for node in parentNode:
-		if parentLength[node] == maxHour:
+		if parentLength[node] >= maxHour:
 			pass
 		elif parentLength[node] < getMinWorkingTime(node):
 			currNode.append(node)
@@ -218,8 +218,10 @@ def convertSolution(solution):
 				m[name][1] = i
 			else:
 				m[name] = [i,i]
+	retVal = []
 	for name, duration in m.iteritems():
-		print name + ', from', intToTime(duration[0]), 'to', intToTime(duration[1] + 1)
+		retVal.append(name + ', from ' + intToTime(duration[0]) + ' to ' + intToTime(duration[1] + 1))
+	return retVal
 
 def solveWeek():
 	solutions = []
@@ -228,10 +230,13 @@ def solveWeek():
 		availHandler.solCount = 0
 		solutions.append(solveDay(i, time_template_const[i], getAllEmployees()))
 		s = solutions[-1]
+		minRetVal = None
 		if not s == None:
 			print 'Day', i, 'num sol', len(s), availHandler.solCount
-			convertSolution(s[i])
-			# print s[i]
+			retVal = convertSolution(s[0])
+			if minRetVal == None or len(minRetVal) > retVal:
+				minRetVal = retVal
+			print minRetVal
 		else:
 			print 'Day', i, 'None'
 		print '\n'

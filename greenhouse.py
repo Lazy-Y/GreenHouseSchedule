@@ -78,7 +78,7 @@ def parseAvailability():
 	retVal = [defaultdict(lambda: []) for i in range(7)]
 	for name, arr in result.iteritems():
 		for duration in arr:
-			if isinstance(duration, list) and duration[1] - duration[0] >= getMinWorkingTime(name):
+			if isinstance(duration, list) and duration[1] + 1 - duration[0] >= getMinWorkingTime(name):
 				retVal[duration[0]/length_for_day][name].append([duration[0] % length_for_day, duration[1] % length_for_day])
 	return retVal
 
@@ -131,15 +131,15 @@ def getEmployeeCoverTime(employees, time, availability):
 		for duration in availability[employee.name]:
 			if duration[0] <= time and duration[1] >= time:
 				leave_time = duration[0] + maxHour
-				if leave_time < duration[1] and leave_time - time >= getMinWorkingTime(employee):
+				if leave_time < duration[1] and leave_time - time + 1 >= getMinWorkingTime(employee):
 					retVal.append([employee, [duration[0], leave_time]])
-				elif duration[1] - time >= getMinWorkingTime(employee):
-					if duration[1] - duration[0] > maxHour:
-						retVal.append([employee, [duration[1] - maxHour, duration[1]]])
+				elif duration[1] + 1 - time >= getMinWorkingTime(employee):
+					if duration[1] + 1 - duration[0] > maxHour:
+						retVal.append([employee, [duration[1] - maxHour - 1, duration[1]]])
 					else:
 						retVal.append([employee, duration]) 
-				elif duration[1] - duration[0] >= getMinWorkingTime(employee):
-					retVal.append([employee, [max(duration[0], duration[1] - maxHour), duration[1]]])
+				elif duration[1] + 1 - duration[0] >= getMinWorkingTime(employee):
+					retVal.append([employee, [max(duration[0], duration[1] - maxHour - 1), duration[1]]])
 	return retVal
 
 
@@ -149,44 +149,11 @@ def getAvailableEmployee(employees, availability):
 	return retVal
 
 
-def optimize_sheet(time_sheet, time_template, for_supervisor = True):
-	start = 0
-	end = len(time_sheet) - 1
-	diff = end - start
-	while diff >= 0:
-		while len(time_sheet[end]) > time_template[end]:# or len(time_sheet[end]) > minNumSupervisors:
-			employee = getEmployeeAt(end, time_sheet, for_supervisor, False, time_template)
-			if employee == None:
-				break
-			time_sheet[end].remove(index_map[employee.name])
-		while not (len(time_sheet[end]) > time_template[end]):# or len(time_sheet[end]) > minNumSupervisors):
-			end-=1
-			if start > end:
-				break
-		while len(time_sheet[start]) > time_template[start]:# or len(time_sheet[start]) > minNumSupervisors:
-			employee = getEmployeeAt(start, time_sheet, for_supervisor, True, time_template)
-			if employee == None:
-				break
-			time_sheet[start].remove(index_map[employee.name])
-		while not (len(time_sheet[start]) > time_template[start]):# or len(time_sheet[start]) > minNumSupervisors):
-			start+=1
-			if start > end:
-				break
-		if diff == end - start:
-			break
-		else:
-			diff = end - start
-	if end-start > 0:
-		return None
-	else:
-		return time_sheet
-
-
 
 def dfs_supervisors(availability, time_template, employees, start, time_sheet, dptable):
-	if str(time_sheet) in dptable:
+	if str(sorted(time_sheet)) in dptable:
 		return []
-	dptable.add(str(time_sheet))
+	dptable.add(str(sorted(time_sheet)))
 	result = []
 	for i in range(start, len(time_template)):
 		if time_template[i] > 0 and len(time_sheet[i]) < minNumSupervisors:
@@ -203,9 +170,9 @@ def dfs_supervisors(availability, time_template, employees, start, time_sheet, d
 
 def dfs_employees(availability, time_template, employees, start, time_sheet, dptable):
 	# print availability, employees, time_sheet
-	if str(time_sheet) in dptable or len(dptable) > 100:
+	if str(sorted(time_sheet)) in dptable or len(dptable) > 100:
 		return []
-	dptable.add(str(time_sheet))
+	dptable.add(str(sorted(time_sheet)))
 	# if len(dptable) % 1000 == 0:
 	# 	print 'processing', len(dptable), 'data'
 	result = []
@@ -297,9 +264,6 @@ def optimizeEmployee(index, solution, time_template, forward):
 		elif (index == len(solution) - 1) or (item not in solution[index+1]):
 			removeable_array.append(item)
 
-	# if len(removeable_array) == 0 and index > 0 and forward:
-	# 	print 'zero', solution[index], solution[index-1]
-
 	for item in removeable_array:
 		if not hasOtherDriverAndSupervisor(employees[item], solution, index, time_template):
 			removeable_array.remove(item)
@@ -312,7 +276,7 @@ def optimizeEmployee(index, solution, time_template, forward):
 			while i < len(solution) and item in solution[i]:
 				i += 1
 			if (max_duration == None) or (max_duration < i - index):
-				if i - index >= getMinWorkingTime(item):
+				if i - index > getMinWorkingTime(item):
 					max_duration = i - index
 					max_employee = item
 	else:
@@ -321,33 +285,43 @@ def optimizeEmployee(index, solution, time_template, forward):
 			while i >= 0 and item in solution[i]:
 				i -= 1
 			if (max_duration == None) or (max_duration < index - i):
-				if index - i >= getMinWorkingTime(item):
+				if index - i> getMinWorkingTime(item):
 					max_duration = index - i
 					max_employee = item
 	return max_employee
 
 
 def optimizeSolution(solution, time_template):
-	for i in range(len(solution)):
-		while len(solution[i]) > time_template[i]:
-			employee_id = optimizeEmployee(i, solution, time_template, True)
-			if employee_id == None:
-				break
-			else:
-				solution[i].remove(employee_id)
-	for i in range(len(solution) - 1, -1, -1):
-		while len(solution[i]) > time_template[i]:
-			employee_id = optimizeEmployee(i, solution, time_template, False)
-			if employee_id == None:
-				break
-			else:
-				solution[i].remove(employee_id)
-	for i in range(len(solution)):
-		if not len(solution[i]) == time_template[i]:
-			return None
+	diff = 9999999
+	new_diff = diff - 1
+	while new_diff < diff and new_diff > 0:
+		diff = new_diff
+		new_diff = 0
+		for i in range(len(solution)):
+			while len(solution[i]) > time_template[i]:
+				employee_id = optimizeEmployee(i, solution, time_template, True)
+				if employee_id == None:
+					break
+				else:
+					solution[i].remove(employee_id)
+		for i in range(len(solution) - 1, -1, -1):
+			while len(solution[i]) > time_template[i]:
+				employee_id = optimizeEmployee(i, solution, time_template, False)
+				if employee_id == None:
+					break
+				else:
+					solution[i].remove(employee_id)
+		new_diff = countTimeOff(solution, time_template)
 	return solution
 
 
+
+def countTimeOff(solution, time_template):
+	timeOff = 0
+	for i in range(len(solution)):
+		timeOff += len(solution[i]) - time_template[i]
+	return timeOff
+	
 
 
 def getDaySolutions(i):
@@ -366,11 +340,22 @@ def getDaySolutions(i):
 	return retVal
 
 
-def intToTime(i):
-	return str(i/2+11) + ':' + ('30' if i%2 else '00')
+def intToTime(i, day):
+	end = len(time_template_const[day])-1
+	for time in range(len(time_template_const[day])-1, -1, -1):
+		if time_template_const[day][time] == 0:
+			end = time
+		else:
+			break
+	if i == 0:
+		return 'Open'
+	elif i >= end:
+		return 'Close'
+	else:
+		return str(i/2+11) + ':' + ('30' if i%2 else '00')
 
 
-def convertSolution(solution):
+def convertSolution(solution, day):
 	m = {}
 	for i in range(len(solution)):
 		for j in range(len(solution[i])):
@@ -379,21 +364,117 @@ def convertSolution(solution):
 				m[name][1] = i
 			else:
 				m[name] = [i,i]
+	retVal = defaultdict(lambda: "")
 	for name, duration in m.iteritems():
-		print name + ', from', intToTime(duration[0]), 'to', intToTime(duration[1])
-
-
-
-def getAllSolutions():
-	retVal = []
-	for i in range(5,6):
-		current_day = i
-		retVal.append(getDaySolutions(i))
-		print 'day',i, 'solution', len(retVal[-1])
+		interval = intToTime(duration[0], day) + ' ~ ' + intToTime(duration[1]+1, day)
+		print name + ',', interval
+		retVal[name] = interval
 	return retVal
 
-getAllSolutions()
+def closestToTime(solution_set, time_template):
+	retVal = []
+	timeOff = 9999999
+	for solution in solution_set:
+		currTimeOff = countTimeOff(solution, time_template)
+		if currTimeOff < timeOff:
+			timeOff = currTimeOff
+			retVal = [solution]
+		elif currTimeOff == timeOff:
+			retVal.append(solution)
+	return retVal
+
+def fewestPeople(solution_set):
+	numPeople = 9999999
+	retVal = []
+	for solution in solution_set:
+		pplSet = set()
+		for arr in solution:
+			pplSet = pplSet.union(set(arr))
+		if len(pplSet) < numPeople:
+			numPeople = len(pplSet)
+			retVal = [solution]
+		elif len(pplSet) == numPeople:
+			retVal.append(solution)
+	return retVal
+
+
+def moreSenior(solution_set):
+	retVal = []
+	max_points = 0
+	for solution in solution_set:
+		points = 0
+		for arr in solution:
+			for i in arr:
+				points += employees[i].level
+		if points > max_points:
+			retVal = [solution]
+			max_points = points
+		elif points == max_points:
+			retVal.append(solution)
+	return retVal
+
+
+dayArr = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+def getAllSolutions():
+	retVal = []
+	for i in range(7):
+		result = getDaySolutions(i)
+		result = moreSenior(fewestPeople(closestToTime(result, time_template_const[i])))
+		if len(result) > 0:
+			sol = choice(result)
+			print dayArr[i], 'num_solutions', len(result), 'time_off', countTimeOff(sol, time_template_const[i])
+			retVal.append(convertSolution(sol, i))
+			print '\n'
+		else:
+			print 'Day', i, 'no solution\n'
+	return retVal
+
+
+result = getAllSolutions()
 
 
 
+
+def export(result):
+	array = defaultdict(lambda: [])
+	final_str = ''
+	for i in range(7):
+		for employee in employees:
+			array[employee.name].append(result[i][employee.name])
+	final_str += 'Supervisors\t' + '\t'.join(dayArr) + '\n'
+	for name, intervals in array.iteritems():
+		s = name
+		if employees[index_map[name]].level == 3:
+			for interval in intervals:
+				s += '\t' + interval
+			final_str += s + '\n'
+
+	final_str += '\n\n'
+	final_str += 'Servers\t\n'
+	for name, intervals in array.iteritems():
+		s = name
+		if employees[index_map[name]].level == 2:
+			for interval in intervals:
+				s += '\t' + interval
+			final_str += s + '\n'
+
+	final_str += '\n\n'
+	final_str += 'New Servers\t\n'
+	for name, intervals in array.iteritems():
+		s = name
+		if employees[index_map[name]].level < 2:
+			for interval in intervals:
+				s += '\t' + interval
+			final_str += s + '\n'
+	f = open('output.txt', 'w')
+	f.write(final_str)
+			
+
+
+
+export(result)
+
+
+
+	
 
