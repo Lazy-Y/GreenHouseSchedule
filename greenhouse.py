@@ -4,9 +4,12 @@ from random import choice
 from copy import deepcopy
 
 newServerMinHour = 8#4*2
-ServerMinHour = 8#5*2
+ServerMinHour = 10#5*2
 maxHour = 16
 minNumSupervisors = 1
+debugMode = False
+allowFewerEmployee = False
+printDetail = True
 
 class Employee:
 	"""docstring for Employee"""
@@ -27,6 +30,16 @@ def parseCSV(filename):
 		reader = csv.reader(f, delimiter="\t")
 		return list(reader)
 
+
+def parseRequirement():
+	arr = parseCSV('requirement.csv')
+	minMap, maxMap = {}, {}
+	for line in arr:
+		if line[1] == 'min':
+			minMap[line[0]] = int(line[2])
+		elif line[1] == 'max':
+			maxMap[line[0]] = int(line[2])
+	return minMap, maxMap
 
 # return the array of Employee
 # return a name to id map
@@ -62,7 +75,7 @@ def parseAvailability():
 	length_for_day = len(arr)/7
 	result = defaultdict(lambda: [])
 	for i in range(1, len(arr)):
-		for j in range(1, len(arr[i])):
+		for j in range(3, len(arr[i])):
 			name = arr[0][j]
 			if arr[i][j].startswith('YES'):
 				if len(result[name]) == 0:
@@ -108,19 +121,30 @@ def getNonSupervisors():
 	return nonSupervisors
 	
 
-def getMinWorkingTime(employee):
-	if isinstance(employee, str):
-		return ServerMinHour if employees[index_map[employee]].level > 1 else newServerMinHour
-	elif isinstance(employee, int):
-		return ServerMinHour if employees[employee].level > 1 else newServerMinHour
-	else:
-		return ServerMinHour if employee.level > 1 else newServerMinHour
+minMap, maxMap = parseRequirement()
 
+
+def getMinWorkingTime(employee):
+	person = None
+	if isinstance(employee, str):
+		person = employees[index_map[employee]]
+		# return ServerMinHour if employees[index_map[employee]].level > 1 else newServerMinHour
+	elif isinstance(employee, int):
+		person = employees[employee]
+		# return ServerMinHour if employees[employee].level > 1 else newServerMinHour
+	else:
+		person = employee
+		# return ServerMinHour if employee.level > 1 else newServerMinHour
+	if person.name in minMap:
+		return minMap[person.name]
+	else:
+		return ServerMinHour if person.level > 1 else newServerMinHour
 
 
 (employees, index_map) = parseEmployee()
 time_template_const = parseTemplate()
 availability = parseAvailability()
+
 
 def getEmployeeCoverTime(employees, time, availability):
 	retVal = []
@@ -166,7 +190,6 @@ def dfs_supervisors(availability, time_template, employees, start, time_sheet, d
 
 
 def dfs_employees(availability, time_template, employees, start, time_sheet, dptable):
-	# print availability, employees, time_sheet
 	if str(sorted(time_sheet)) in dptable or len(dptable) > 100:
 		return []
 	dptable.add(str(sorted(time_sheet)))
@@ -226,7 +249,8 @@ def getSupervisorSheets(current_day):
 		isOk = True
 		for i in range(len(solution_sheet)):
 			if len(solution_sheet[i]) == 0 and time_template_const[current_day][i] > 0:
-				# print 'not okay',i, solution_sheet
+				if debugMode:
+					print 'no supervisor on day', current_day
 				isOk = False
 				break
 		if isOk:
@@ -237,14 +261,28 @@ def getSupervisorSheets(current_day):
 
 def checkValidSolution(solution, time_template):
 	for i in range(len(solution)):
-		if len(solution[i]) < time_template[i]:
-			return False
-		elif time_template[i] > 1:
+		if not allowFewerEmployee:
+			if len(solution[i]) < time_template[i]:
+				if debugMode:
+					print 'few employee in day', time_template_const.index(time_template)
+				return False
+		if time_template[i] > 1:
 			hasDriver = False
 			for j in solution[i]:
 				if employees[j].isDriver:
 					hasDriver = True
 			if not hasDriver:
+				if debugMode:
+					print 'no driver'
+				return False
+		if time_template[i] > 0:
+			hasSupervisor = False
+			for j in solution[i]:
+				if employees[j].level > 2:
+					hasSupervisor = True
+			if not hasSupervisor:
+				if debugMode:
+					print 'no supervisor'
 				return False
 	return True
 
@@ -305,6 +343,9 @@ def optimizeSolution(solution, time_template):
 				else:
 					solution[i].remove(employee_id)
 		new_diff = countTimeOff(solution, time_template)
+	# for i in range(len(time_template)):
+	# 	if time_template[i] == 0 and solution[i] > 0:
+	# 		return None
 	return solution
 
 
@@ -312,13 +353,17 @@ def optimizeSolution(solution, time_template):
 def countTimeOff(solution, time_template):
 	timeOff = 0
 	for i in range(len(solution)):
-		timeOff += len(solution[i]) - time_template[i]
+		timeOff += abs(len(solution[i]) - time_template[i])
 	return timeOff
 	
 
 
 def getDaySolutions(i):
 	supervisor_solutions = getSupervisorSheets(i)
+	if debugMode:
+		print 'supervisor solution'
+		for sol in supervisor_solutions:
+			print sol, '\n'
 	allSolutions = []
 	for solution in supervisor_solutions:
 		dptable = set()
@@ -342,7 +387,7 @@ def intToTime(i, day):
 			break
 	if i == 0:
 		return 'Open'
-	elif i >= end:
+	elif i > end:
 		return 'Close'
 	else:
 		return str(i/2+11) + ':' + ('30' if i%2 else '00')
@@ -406,7 +451,6 @@ def moreSenior(solution_set):
 			retVal.append(solution)
 	return retVal
 
-
 dayArr = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 def getAllSolutions():
 	retVal = []
@@ -416,10 +460,13 @@ def getAllSolutions():
 		if len(result) > 0:
 			sol = choice(result)
 			print dayArr[i], 'num_solutions', len(result), 'time_off', countTimeOff(sol, time_template_const[i])
+			if printDetail:
+				print sol, '\n', [len(item) for item in sol], '\n', time_template_const[i]
 			retVal.append(convertSolution(sol, i))
 			print '\n'
 		else:
 			print 'Day', i, 'no solution\n'
+			retVal.append([])
 	return retVal
 
 
@@ -432,8 +479,13 @@ def export(result):
 	array = defaultdict(lambda: [])
 	final_str = ''
 	for i in range(7):
-		for employee in employees:
-			array[employee.name].append(result[i][employee.name])
+		if len(result[i]) == 0:
+			print 'Day', i, 'no solution\n'
+			for employee in employees:
+				array[employee.name].append("")
+		else:
+			for employee in employees:
+				array[employee.name].append(result[i][employee.name])
 	final_str += 'Supervisors\t' + '\t'.join(dayArr) + '\n'
 	for name, intervals in array.iteritems():
 		s = name
@@ -459,15 +511,10 @@ def export(result):
 			for interval in intervals:
 				s += '\t' + interval
 			final_str += s + '\n'
-	f = open('output.txt', 'w')
+	f = open('output.csv', 'w')
 	f.write(final_str)
 			
 
 
 
 export(result)
-
-
-
-	
-
