@@ -84,9 +84,6 @@ def parseAvailability():
 
 
 
-
-
-
 # get empty day sheet template
 def getEmptyDaySheet(day):
 	# supervisor_sheet = [[0 for i in range(len(time_template[0]))] for j in range(len(time_template))]
@@ -216,10 +213,6 @@ def hasOtherDriverAndSupervisor(employee, time_sheet, time, time_template):
 			if employees[item].level > 2:
 				hasSupervisor = True
 	return hasDriver and hasSupervisor
-
-
-
-
 
 
 
