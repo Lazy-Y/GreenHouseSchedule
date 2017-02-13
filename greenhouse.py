@@ -10,7 +10,8 @@ minNumSupervisors = 1
 debugMode = False
 allowFewerEmployee = False
 printDetail = True
-maxTableSize = 10000
+maxTableSize = 1000
+maxIteration = 1000
 
 class Employee:
 	"""docstring for Employee"""
@@ -306,6 +307,7 @@ def getDaySolutions(i):
 			solution = optimizeSolution(item[0], time_template_const[i])
 			if not solution == None:
 				retVal.append(solution)
+	print 'Get day', i
 	return retVal
 
 
@@ -391,21 +393,56 @@ def moreSenior(solution_set):
 	return retVal
 
 dayArr = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+# def getAllSolutions():
+# 	retVal = []
+# 	for i in range(7):
+# 		result = getDaySolutions(i)
+# 		result = moreSenior(fewestPeople(closestToTime(result, time_template_const[i])))
+# 		if len(result) > 0:
+# 			sol = choice(result)
+# 			print dayArr[i], 'num_solutions', len(result), 'time_off', countTimeOff(sol, time_template_const[i])
+# 			if printDetail:
+# 				print sol, '\n', [len(item) for item in sol], '\n', time_template_const[i]
+# 			retVal.append(convertSolution(sol, i))
+# 			print '\n'
+# 		else:
+# 			print 'Day', i, 'no solution\n'
+# 			retVal.append([])
+# 	return retVal
 def getAllSolutions():
-	retVal = []
+	retVal = [moreSenior(fewestPeople(closestToTime(getDaySolutions(i), time_template_const[i]))) for i in range(7)]
+	bestSolution = None
+	maxNumPeople = 0
+	for iteration in range(maxIteration):
+		currSolution = []
+		for solutions in retVal:
+			currSolution.append(choice(solutions) if len(solutions) > 0 else None)
+		s = set()
+		for daySolution in currSolution:
+			if daySolution:
+				for section in daySolution:
+					for people in section:
+						s.add(people)
+		if len(s) > maxNumPeople:
+			maxNumPeople = len(s)
+			bestSolution = currSolution
+			if len(s) == len(employees):
+				break
+
 	for i in range(7):
-		result = getDaySolutions(i)
-		result = moreSenior(fewestPeople(closestToTime(result, time_template_const[i])))
-		if len(result) > 0:
-			sol = choice(result)
-			print dayArr[i], 'num_solutions', len(result), 'time_off', countTimeOff(sol, time_template_const[i])
+		sol = bestSolution[i]
+		if sol:
+			print dayArr[i], 'num_solutions', len(retVal[i]), 'time_off', countTimeOff(sol, time_template_const[i])
 			if printDetail:
 				print sol, '\n', [len(item) for item in sol], '\n', time_template_const[i]
-			retVal.append(convertSolution(sol, i))
+			retVal[i] = convertSolution(sol, i)
 			print '\n'
 		else:
 			print 'Day', i, 'no solution\n'
-			retVal.append([])
+			retVal[i] = []
+
+	if maxNumPeople < len(employees):
+		print 'Unable to find solutions in', maxIteration, 'that everyone can work'
 	return retVal
 
 
