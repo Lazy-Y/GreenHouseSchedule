@@ -10,6 +10,7 @@ minNumSupervisors = 1
 debugMode = False
 allowFewerEmployee = False
 printDetail = True
+maxTableSize = 10000
 
 class Employee:
 	"""docstring for Employee"""
@@ -23,6 +24,9 @@ class Employee:
 
 	def __repr__(self):
 	    return self.__str__()
+
+	def __gt__(self, other):
+	    return self.level > other.level
 
 
 def parseCSV(filename):
@@ -96,7 +100,6 @@ def parseAvailability():
 	return retVal
 
 
-
 # get empty day sheet template
 def getEmptyDaySheet(day):
 	# supervisor_sheet = [[0 for i in range(len(time_template[0]))] for j in range(len(time_template))]
@@ -128,13 +131,10 @@ def getMinWorkingTime(employee):
 	person = None
 	if isinstance(employee, str):
 		person = employees[index_map[employee]]
-		# return ServerMinHour if employees[index_map[employee]].level > 1 else newServerMinHour
 	elif isinstance(employee, int):
 		person = employees[employee]
-		# return ServerMinHour if employees[employee].level > 1 else newServerMinHour
 	else:
 		person = employee
-		# return ServerMinHour if employee.level > 1 else newServerMinHour
 	if person.name in minMap:
 		return minMap[person.name]
 	else:
@@ -146,59 +146,32 @@ time_template_const = parseTemplate()
 availability = parseAvailability()
 
 
-def getEmployeeCoverTime(employees, time, availability):
+def getEmployeeCoverTime(employees, time, availability, time_template):
+	open_time, close_time = getStartAndEnd(time_template)
 	retVal = []
 	for employee in employees:
 		for duration in availability[employee.name]:
 			if duration[0] <= time and duration[1] >= time:
-				leave_time = duration[0] + maxHour
-				if leave_time < duration[1] and leave_time - time + 1 >= getMinWorkingTime(employee):
-					retVal.append([employee, [duration[0], leave_time]])
-				elif duration[1] + 1 - time >= getMinWorkingTime(employee):
-					if duration[1] + 1 - duration[0] > maxHour:
-						retVal.append([employee, [duration[1] - maxHour - 1, duration[1]]])
-					else:
-						retVal.append([employee, duration]) 
-				elif duration[1] + 1 - duration[0] >= getMinWorkingTime(employee):
-					retVal.append([employee, [max(duration[0], duration[1] - maxHour - 1), duration[1]]])
+				end_time = min(duration[1], time + maxHour - 1, close_time)
+				start_time = max(end_time - maxHour + 1, duration[0], open_time)
+				retVal.append([employee, [start_time, end_time]])
 	return retVal
 
 
 # return all employees who are available at that DAY
 def getAvailableEmployee(employees, availability):
 	retVal = [employee for employee in employees if len(availability[employee.name]) > 0]
-	return retVal
-
-
-
-def dfs_supervisors(availability, time_template, employees, start, time_sheet, dptable):
-	if str(sorted(time_sheet)) in dptable:
-		return []
-	dptable.add(str(sorted(time_sheet)))
-	result = []
-	for i in range(start, len(time_template)):
-		if time_template[i] > 0 and len(time_sheet[i]) < minNumSupervisors:
-			retVal = getEmployeeCoverTime(employees, i, availability)
-			for (employee, duration) in retVal:
-				employees_copy = [temp_employee for temp_employee in employees if not employee.name == temp_employee.name]
-				time_sheet_copy = deepcopy(time_sheet)
-				for j in range(duration[0],duration[1]+1):
-					time_sheet_copy[j].append(index_map[employee.name])
-				result += dfs_supervisors(availability, time_template, employees_copy, i, time_sheet_copy, dptable)
-	result = result if len(result) > 0 else [[time_sheet, employees]]
-	return result
+	return sorted(retVal, reverse = True)
 
 
 def dfs_employees(availability, time_template, employees, start, time_sheet, dptable):
-	if str(sorted(time_sheet)) in dptable or len(dptable) > 100:
+	if str(sorted([sorted(item) for item in time_sheet])) in dptable or len(dptable) > maxTableSize:
 		return []
-	dptable.add(str(sorted(time_sheet)))
-	# if len(dptable) % 1000 == 0:
-	# 	print 'processing', len(dptable), 'data'
+	dptable.add(str(sorted([sorted(item) for item in time_sheet])))
 	result = []
 	for i in range(start, len(time_template)):
 		if time_template[i] > len(time_sheet[i]):
-			retVal = getEmployeeCoverTime(employees, i, availability)
+			retVal = getEmployeeCoverTime(employees, i, availability, time_template)
 			for (employee, duration) in retVal:
 				employees_copy = [temp_employee for temp_employee in employees if not employee.name == temp_employee.name]
 				time_sheet_copy = deepcopy(time_sheet)
@@ -208,22 +181,6 @@ def dfs_employees(availability, time_template, employees, start, time_sheet, dpt
 	result = result if len(result) > 0 else [[time_sheet, employees]]
 	return result
 
-
-
-
-def checkDriver(time_sheet, time_template):
-	for i in range(len(time_sheet)):
-		if time_template[i] <= 1:
-			continue
-		item = time_sheet[i]
-		hasDriver = False
-		for i in item:
-			if employees[i].isDriver:
-				hasDriver = True
-				break
-		if not hasDriver:
-			return False
-	return True
 
 
 def hasOtherDriverAndSupervisor(employee, time_sheet, time, time_template):
@@ -238,35 +195,19 @@ def hasOtherDriverAndSupervisor(employee, time_sheet, time, time_template):
 	return hasDriver and hasSupervisor
 
 
-
-
 dptable = set()
-def getSupervisorSheets(current_day):
-	dptable = set()
-	result = dfs_supervisors(availability[current_day], time_template_const[current_day], getAvailableEmployee(getSupervisors(), availability[current_day]), 0, getEmptyDaySheet(current_day), dptable)
-	retVal = []
-	for (solution_sheet, employees) in result:
-		isOk = True
-		for i in range(len(solution_sheet)):
-			if len(solution_sheet[i]) == 0 and time_template_const[current_day][i] > 0:
-				if debugMode:
-					print 'no supervisor on day', current_day
-				isOk = False
-				break
-		if isOk:
-			retVal.append([solution_sheet, employees])
-	return retVal
-
-
-
-def checkValidSolution(solution, time_template):
+def checkValidSolution(solution, day):
 	for i in range(len(solution)):
-		if not allowFewerEmployee:
-			if len(solution[i]) < time_template[i]:
+		if time_template_const[day][i] > 0:
+			hasSupervisor = False
+			for j in solution[i]:
+				if employees[j].level > 2:
+					hasSupervisor = True
+			if not hasSupervisor:
 				if debugMode:
-					print 'few employee in day', time_template_const.index(time_template)
+					print 'no supervisor', [[employees[index].name for index in array] for array in solution], '\n', solution, '\n', [len(item) for item in solution], '\n', time_template_const[day]
 				return False
-		if time_template[i] > 1:
+		if time_template_const[day][i] > 1:
 			hasDriver = False
 			for j in solution[i]:
 				if employees[j].isDriver:
@@ -275,14 +216,10 @@ def checkValidSolution(solution, time_template):
 				if debugMode:
 					print 'no driver'
 				return False
-		if time_template[i] > 0:
-			hasSupervisor = False
-			for j in solution[i]:
-				if employees[j].level > 2:
-					hasSupervisor = True
-			if not hasSupervisor:
+		if not allowFewerEmployee:
+			if len(solution[i]) < time_template_const[day][i]:
 				if debugMode:
-					print 'no supervisor'
+					print 'few employee in day', day
 				return False
 	return True
 
@@ -359,32 +296,34 @@ def countTimeOff(solution, time_template):
 
 
 def getDaySolutions(i):
-	supervisor_solutions = getSupervisorSheets(i)
-	if debugMode:
-		print 'supervisor solution'
-		for sol in supervisor_solutions:
-			print sol, '\n'
-	allSolutions = []
-	for solution in supervisor_solutions:
-		dptable = set()
-		allSolutions += dfs_employees(availability[i], time_template_const[i], solution[1] + getAvailableEmployee(getNonSupervisors(), availability[i]), 0, solution[0], dptable)
-	len(set([str(item) for item in allSolutions]))
+	dptable = set()
+	availableEmployees = getAvailableEmployee(employees, availability[i])
+	allSolutions = dfs_employees (availability[i], time_template_const[i], availableEmployees, 0, [[] for item in time_template_const[i]], dptable)
+
 	retVal = []
 	for item in allSolutions:
-		if checkValidSolution(item[0], time_template_const[i]):
+		if checkValidSolution(item[0], i):
 			solution = optimizeSolution(item[0], time_template_const[i])
 			if not solution == None:
 				retVal.append(solution)
 	return retVal
 
 
-def intToTime(i, day):
-	end = len(time_template_const[day])-1
-	for time in range(len(time_template_const[day])-1, -1, -1):
-		if time_template_const[day][time] == 0:
-			end = time
-		else:
+def getStartAndEnd(time_template):
+	start, end = 0, 0
+	for i in range(len(time_template)):
+		if time_template[i] > 0:
+			start = i
 			break
+	for i in range(len(time_template)-1, -1, -1):
+		if time_template[i] > 0:
+			end = i
+			break
+	return start, end
+
+
+def intToTime(i, day):
+	(start, end) = getStartAndEnd(time_template_const[day])
 	if i == 0:
 		return 'Open'
 	elif i > end:
@@ -489,7 +428,7 @@ def export(result):
 	final_str += 'Supervisors\t' + '\t'.join(dayArr) + '\n'
 	for name, intervals in array.iteritems():
 		s = name
-		if employees[index_map[name]].level == 3:
+		if employees[index_map[name]].level >= 3:
 			for interval in intervals:
 				s += '\t' + interval
 			final_str += s + '\n'
