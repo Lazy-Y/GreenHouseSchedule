@@ -1,18 +1,16 @@
 from collections import defaultdict
 import csv
 from random import choice
-from termcolor import colored
 from copy import deepcopy
 
 newServerMinHour = 8#4*2
-ServerMinHour = 10#5*2
+ServerMinHour = 8#5*2
 maxHour = 16
 minNumSupervisors = 1
 debugMode = False
-allowFewerEmployee = True
+allowFewerEmployee = False
 printDetail = False
-maxTableSize = 1000000
-minTableSize = 100
+maxTableSize = 1000
 maxIteration = 1000
 
 class Employee:
@@ -166,42 +164,8 @@ def getAvailableEmployee(employees, availability):
 	retVal = [employee for employee in employees if len(availability[employee.name]) > 0]
 	return sorted(retVal, reverse = True)
 
-# def dfs_employees(availability, time_template, employees, start, time_sheet, dptable):
-# 	if str(sorted([sorted(item) for item in time_sheet])) in dptable or len(dptable) > maxTableSize:
-# 		return []
-# 	dptable.add(str(sorted([sorted(item) for item in time_sheet])))
-# 	result = []
-# 	for i in range(start, len(time_template)):
-# 		if time_template[i] > len(time_sheet[i]):
-# 			retVal = getEmployeeCoverTime(employees, i, availability, time_template)
-# 			for (employee, duration) in retVal:
-# 				employees_copy = [temp_employee for temp_employee in employees if not employee.name == temp_employee.name]
-# 				time_sheet_copy = deepcopy(time_sheet)
-# 				for j in range(duration[0],duration[1]+1):
-# 					time_sheet_copy[j].append(index_map[employee.name])
-# 				result += dfs_employees(availability, time_template, employees_copy, i, time_sheet_copy, dptable)
-# 	result = result if len(result) > 0 else [[time_sheet, employees]]
-# 	return result
 
-def dfs_employees(availability, time_template, employees, i, time_sheet, dptable):
-	if (len(dptable) > minTableSize and str([sorted(item) for item in time_sheet])) in dptable or len(dptable) > maxTableSize or i == len(time_template):
-		return []
-	dptable.add(str([sorted(item) for item in time_sheet]))
-	# print 'sorted', str(sorted([sorted(item) for item in time_sheet]))
-	result = []
-	if time_template[i] > len(time_sheet[i]):
-		retVal = getEmployeeCoverTime(employees, i, availability, time_template)
-		for (employee, duration) in retVal:
-			employees_copy = [temp_employee for temp_employee in employees if not employee.name == temp_employee.name]
-			# print 'add employee', employee, 'time', i, employees
-			time_sheet_copy = deepcopy(time_sheet)
-			for j in range(duration[0],duration[1]+1):
-				time_sheet_copy[j].append(index_map[employee.name])
-			result += dfs_employees(availability, time_template, employees_copy, i, time_sheet_copy, dptable)
-	else:
-		result += dfs_employees(availability, time_template, employees, i + 1, time_sheet, dptable)
-	result = result if len(result) > 0 else [[time_sheet, employees]]
-	return result
+
 
 
 
@@ -241,9 +205,7 @@ def checkValidSolution(solution, day):
 		if not allowFewerEmployee:
 			if len(solution[i]) < time_template_const[day][i]:
 				if debugMode:
-					print 'few employee in day', dayArr[day], solution
-					print [len(item) for item in solution]
-					print [item for item in time_template_const[day]], '\n'
+					print 'few employee in day', day
 				return False
 	return True
 
@@ -259,7 +221,7 @@ def optimizeEmployee(index, solution, time_template, forward):
 	for item in removeable_array:
 		if not hasOtherDriverAndSupervisor(employees[item], solution, index, time_template):
 			removeable_array.remove(item)
-	max_duration = 0
+	max_duration = None
 	max_employee = None
 
 	if forward:
@@ -271,9 +233,6 @@ def optimizeEmployee(index, solution, time_template, forward):
 				if i - index > getMinWorkingTime(item):
 					max_duration = i - index
 					max_employee = item
-			# if (max_duration > employees[item].level):
-			# 	max_duration = employees[item].level
-			# 	max_employee = item
 	else:
 		for item in removeable_array:
 			i = index
@@ -283,9 +242,6 @@ def optimizeEmployee(index, solution, time_template, forward):
 				if index - i> getMinWorkingTime(item):
 					max_duration = index - i
 					max_employee = item
-			# if (max_duration > employees[item].level):
-			# 	max_duration = employees[item].level
-			# 	max_employee = item
 	return max_employee
 
 
@@ -328,9 +284,7 @@ def countTimeOff(solution, time_template):
 def getDaySolutions(i):
 	dptable = set()
 	availableEmployees = getAvailableEmployee(employees, availability[i])
-	if debugMode:
-		print dayArr[i], 'available', availableEmployees
-	allSolutions = dfs_employees(availability[i], time_template_const[i], availableEmployees, 0, [[] for item in time_template_const[i]], dptable)
+	allSolutions = dfs_employees (availability[i], time_template_const[i], availableEmployees, 0, [[] for item in time_template_const[i]], dptable)
 
 	retVal = []
 	for item in allSolutions:
@@ -338,7 +292,7 @@ def getDaySolutions(i):
 			solution = optimizeSolution(item[0], time_template_const[i])
 			if not solution == None:
 				retVal.append(solution)
-	print dayArr[i], 'find' if len(retVal) > 0 else 'no', 'solution'
+	print 'Get day', i
 	return retVal
 
 
@@ -424,6 +378,22 @@ def moreSenior(solution_set):
 	return retVal
 
 dayArr = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+# def getAllSolutions():
+# 	retVal = []
+# 	for i in range(7):
+# 		result = getDaySolutions(i)
+# 		result = moreSenior(fewestPeople(closestToTime(result, time_template_const[i])))
+# 		if len(result) > 0:
+# 			sol = choice(result)
+# 			print dayArr[i], 'num_solutions', len(result), 'time_off', countTimeOff(sol, time_template_const[i])
+# 			if printDetail:
+# 				print sol, '\n', [len(item) for item in sol], '\n', time_template_const[i]
+# 			retVal.append(convertSolution(sol, i))
+# 			print '\n'
+# 		else:
+# 			print 'Day', i, 'no solution\n'
+# 			retVal.append([])
+# 	return retVal
 def getAllSolutions():
 	retVal = [moreSenior(fewestPeople(closestToTime(getDaySolutions(i), time_template_const[i]))) for i in range(7)]
 	bestSolution = None
@@ -450,13 +420,10 @@ def getAllSolutions():
 			print dayArr[i], 'num_solutions', len(retVal[i]), 'time_off', countTimeOff(sol, time_template_const[i])
 			if printDetail:
 				print sol, '\n', [len(item) for item in sol], '\n', time_template_const[i]
-			for j in range(len(sol)):
-				if not len(sol[j]) == time_template_const[i][j]:
-					print colored(intToTime(j, i) + ' expected ' + str(time_template_const[i][j]) + ' actual ' + str(len(sol[j])), 'red' if len(sol[j]) < time_template_const[i][j]else 'green') 
 			retVal[i] = convertSolution(sol, i)
 			print '\n'
 		else:
-			print dayArr[i], 'no solution\n'
+			print 'Day', i, 'no solution\n'
 			retVal[i] = []
 
 	if maxNumPeople < len(employees):
@@ -474,7 +441,7 @@ def export(result):
 	final_str = ''
 	for i in range(7):
 		if len(result[i]) == 0:
-			print dayArr[i], 'no solution\n'
+			print 'Day', i, 'no solution\n'
 			for employee in employees:
 				array[employee.name].append("")
 		else:
