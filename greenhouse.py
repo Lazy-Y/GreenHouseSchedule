@@ -11,6 +11,7 @@ minNumSupervisors = 1
 debugMode = False
 allowFewerEmployee = True
 printDetail = False
+printAllSol = False
 maxTableSize = 1000000
 minTableSize = 100
 maxIteration = 1000
@@ -35,7 +36,7 @@ class Employee:
 def parseCSV(filename):
 	with open(filename, 'rb') as f:
 		reader = csv.reader(f, delimiter="\t")
-		return list(reader)
+		return list([[item.strip() for item in row] for row in reader])
 
 
 def parseRequirement():
@@ -98,7 +99,7 @@ def parseAvailability():
 	retVal = [defaultdict(lambda: []) for i in range(7)]
 	for name, arr in result.iteritems():
 		for duration in arr:
-			if isinstance(duration, list) and duration[1] + 1 - duration[0] >= getMinWorkingTime(name):
+			if name in index_map and isinstance(duration, list) and duration[1] + 1 - duration[0] >= getMinWorkingTime(name):
 				retVal[duration[0]/length_for_day][name].append([duration[0] % length_for_day, duration[1] % length_for_day])
 	return retVal
 
@@ -163,7 +164,7 @@ def getEmployeeCoverTime(employees, time, availability, time_template):
 
 # return all employees who are available at that DAY
 def getAvailableEmployee(employees, availability):
-	retVal = [employee for employee in employees if len(availability[employee.name]) > 0]
+	retVal = [employee for employee in employees if (len(availability[employee.name]) > 0 and employee.level > 0)]
 	return sorted(retVal, reverse = True)
 
 # def dfs_employees(availability, time_template, employees, start, time_sheet, dptable):
@@ -424,6 +425,18 @@ def moreSenior(solution_set):
 	return retVal
 
 dayArr = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+
+def printSolution(num_sol, sol, i):
+	print dayArr[i], 'num_solutions', num_sol, 'time_off', countTimeOff(sol, time_template_const[i])
+	if printDetail:
+		print sol, '\n', [len(item) for item in sol], '\n', time_template_const[i]
+	for j in range(len(sol)):
+		if not len(sol[j]) == time_template_const[i][j]:
+			print colored(intToTime(j, i) + ' expected ' + str(time_template_const[i][j]) + ' actual ' + str(len(sol[j])), 'red' if len(sol[j]) < time_template_const[i][j]else 'green') 
+	if printAllSol:
+		convertSolution(sol, i)
+		print '\n'
+
 def getAllSolutions():
 	retVal = [moreSenior(fewestPeople(closestToTime(getDaySolutions(i), time_template_const[i]))) for i in range(7)]
 	bestSolution = None
@@ -444,17 +457,25 @@ def getAllSolutions():
 			if len(s) == len(employees):
 				break
 
+	if printAllSol:
+		for i in range(len(retVal)):
+			for solution in retVal[i]:
+				printSolution(len(retVal[i]), solution, i)
+
 	for i in range(7):
 		sol = bestSolution[i]
 		if sol:
-			print dayArr[i], 'num_solutions', len(retVal[i]), 'time_off', countTimeOff(sol, time_template_const[i])
-			if printDetail:
-				print sol, '\n', [len(item) for item in sol], '\n', time_template_const[i]
-			for j in range(len(sol)):
-				if not len(sol[j]) == time_template_const[i][j]:
-					print colored(intToTime(j, i) + ' expected ' + str(time_template_const[i][j]) + ' actual ' + str(len(sol[j])), 'red' if len(sol[j]) < time_template_const[i][j]else 'green') 
+			printSolution(len(retVal[i]), sol, i)
 			retVal[i] = convertSolution(sol, i)
 			print '\n'
+			# print dayArr[i], 'num_solutions', len(retVal[i]), 'time_off', countTimeOff(sol, time_template_const[i])
+			# if printDetail:
+			# 	print sol, '\n', [len(item) for item in sol], '\n', time_template_const[i]
+			# for j in range(len(sol)):
+			# 	if not len(sol[j]) == time_template_const[i][j]:
+			# 		print colored(intToTime(j, i) + ' expected ' + str(time_template_const[i][j]) + ' actual ' + str(len(sol[j])), 'red' if len(sol[j]) < time_template_const[i][j]else 'green') 
+			# retVal[i] = convertSolution(sol, i)
+			# print '\n'
 		else:
 			print dayArr[i], 'no solution\n'
 			retVal[i] = []
