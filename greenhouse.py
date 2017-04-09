@@ -5,15 +5,15 @@ from termcolor import colored
 from copy import deepcopy
 
 newServerMinHour = 8#4*2
-ServerMinHour = 10#5*2
+ServerMinHour = 8#5*2
 maxHour = 16
 minNumSupervisors = 1
 debugMode = False
 allowFewerEmployee = True
 printDetail = False
 printAllSol = False
-maxTableSize = 1000000
-minTableSize = 100
+maxTableSize = 100000
+minTableSize = 3000
 maxIteration = 1000
 
 class Employee:

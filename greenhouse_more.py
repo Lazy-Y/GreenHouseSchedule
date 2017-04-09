@@ -4,7 +4,7 @@ from random import choice
 from copy import deepcopy
 
 newServerMinHour = 8#4*2
-ServerMinHour = 8#5*2
+ServerMinHour = 10#5*2
 maxHour = 16
 minNumSupervisors = 1
 debugMode = False
@@ -33,7 +33,7 @@ class Employee:
 def parseCSV(filename):
 	with open(filename, 'rb') as f:
 		reader = csv.reader(f, delimiter="\t")
-		return list(reader)
+		return list([[item.strip() for item in row] for row in reader])
 
 
 def parseRequirement():
